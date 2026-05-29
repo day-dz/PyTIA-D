@@ -2,17 +2,36 @@
 
 import PySimpleGUI as sg
 import os.path # used to grab folder contents
+import os
+import vt
+import time
 
-def fetch_api_data(query):
-    """Simulate an API call (replace with your real API logic)."""
+try:
+	client = vt.Client(os.getenv("VirusTotal_API_Key"))
+	print("> API key found...")
+	print("> Booting application...")
+except:
+	print("> No API key found at environment variable VirusTotal_API_Key")
+
+
+
+def fetch_file_data(filehash):
     time.sleep(2)  # Simulate network delay
     try:
-        # Example: GET request to a public API
-        response = requests.get(f"https://api.agify.io?name={query}", timeout=5)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        return {"error": str(e)}
+        file = client.get_object("/files/" + filehash)
+        return file
+    except Exception as e:
+        raise Exception(f"file lookup failed: {e}")
+
+def fetch_URL_data(url):
+    time.sleep(2)  # Simulate network delay
+    try:
+        url_id = vt.url_id(url)
+        print("> Attempting to pull information about "+ url_id + " ...")
+        urlToCheck = client.get_object("/urls/"+url_id)
+        return urlToCheck
+    except Exception as e:
+        raise Exception(f"URL lookup failed: {e}")
 
 icon_path = os.path.basename("favicon.ico")
 
@@ -22,10 +41,10 @@ file_column = [
 	[
 		sg.Text("File Checker (Enter a Filehash):"),
 		sg.In(size=(25,1), enable_events = True, key="-FILEHASH-"),
-		sg.Button("Submit",tooltip="Please enter a Filehash")
+		sg.Button("Submit",tooltip="Please enter a Filehash", key="-FILEBUTTON-")
 	],
 	[
-		sg.Multiline("",size=(60,15), key="-OUTPUT-", disabled=True, autoscroll=True)
+		sg.Multiline("",size=(60,15), key="-OUTPUT1-", disabled=True, autoscroll=True)
 	],
 ]
 
@@ -33,10 +52,10 @@ URL_column = [
 	[
 		sg.Text("URL Checker"),
 		sg.In(size=(25,1), enable_events = True, key="-URL-"),
-		sg.Button("Submit",tooltip="Please enter a URL")
+		sg.Button("Submit",tooltip="Please enter a URL", key="-URLBUTTON-")
 	],
 	[
-		sg.Multiline("",size=(60,15), key="-OUTPUT-", disabled=True, autoscroll=True)
+		sg.Multiline("",size=(60,15), key="-OUTPUT2-", disabled=True, autoscroll=True)
 	],
 ]
 
@@ -55,30 +74,23 @@ while True:
 	if event == "Exit" or event == sg.WIN_CLOSED:
 		break
 
-	if event == "-FOLDER-":
-		folder = values["-FOLDER-"]
+	if event == "-FILEBUTTON-":
 		try:
-			#Get list of files in folder
-			file_list = os.listdir(folder)
-		except:
-			file_list = []
+			file = fetch_file_data(values["-FILEHASH-"])
+			window["-OUTPUT1-"].update("File Names: "+file.names+
+			"\nFile size: "+str(file.size)+" bytes" +
+			"\nFile Sha256: "+str(file.sha256) +
+			"\nFile Type: "+str(file.type_tag) +
+			"\nFile Last Analysed Statistics: "+str(file.last_analysis_stats))
+		except Exception as e:
+			window["-OUTPUT1-"].update(str(e))
 
-		fnames = [
-			f
-			for f in file_list
-			if os.path.isfile(os.path.join(folder,f))
-			and f.lower().endswith((".png", ".gif"))
-		]
-		window["-FILE LIST-"].update(fnames)
-
-	elif event == "-FILE LIST-": # once a file is chosen
+	elif event == "-URLBUTTON-":
+		print("> Attempting to pull URL information...")
 		try:
-			filename = os.path.join(
-				values["-FOLDER-"], values["-FILE LIST-"][0]
-			)
-			window["-TOUT-"].update(filename)
-			window["-IMAGE-"].update(filename=filename)
-		except:
-			pass
+			urltoCheck = fetch_URL_data(values["-URL-"])
+			
+		except Exception as e:
+			window["-OUTPUT2-"].update(str(e))
 
 window.close()
