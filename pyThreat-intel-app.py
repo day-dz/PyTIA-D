@@ -67,7 +67,7 @@ layout = [
 	]
 ]
 
-window = sg.Window("Day-Dz | Threat Intel App", layout, icon=icon_path)
+window = sg.Window("Day-Dz | The Check-a-matic 2000", layout, icon=icon_path)
 
 while True:
 	event, values = window.read()
@@ -89,7 +89,10 @@ while True:
 		print("> Attempting to pull URL information...")
 		try:
 			urltoCheck = fetch_URL_data(values["-URL-"])
-			
+			window["-OUTPUT2-"].update("Initial URL: "+urltoCheck.url +
+			"\nVirusTotal Reputation: "+str(urltoCheck.reputation)+
+			"\nLast Analysis stats: "+str(urltoCheck.last_analysis_stats)+
+			"\nWebsite Category: "+str(urltoCheck.categories))
 		except Exception as e:
 			window["-OUTPUT2-"].update(str(e))
 
