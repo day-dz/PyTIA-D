@@ -13,8 +13,6 @@ try:
 except:
 	print("> No API key found at environment variable VirusTotal_API_Key")
 
-
-
 def fetch_file_data(filehash):
     time.sleep(2)  # Simulate network delay
     try:
@@ -27,12 +25,97 @@ def fetch_URL_data(url):
     time.sleep(2)  # Simulate network delay
     try:
         url_id = vt.url_id(url)
-        print("> Attempting to pull information about "+ url_id + " ...")
         urlToCheck = client.get_object("/urls/"+url_id)
         return urlToCheck
     except Exception as e:
         raise Exception(f"URL lookup failed: {e}")
 
+def format_analysis_stats(stats):
+	order = ["malicious","suspicious","undetected","harmless","timeout"]
+
+	line = []
+
+	for key in order:
+		value = stats.get(key,0)
+		line.append(f"{key.capitalize()}: {value}")
+
+	return "\n".join(line)
+
+def format_categories(categories):
+	lines = []
+
+	for vendor, category in categories.items():
+		lines.append(f"{vendor}: {category}")
+	return "\n".join(lines)
+
+def make_verdict(stats):
+	malicious_count = stats.get("malicious",0)
+	suspicious_count = stats.get("suspicious",0)
+
+	if malicious_count > 0:
+		return "Potentially Malicious"
+	if suspicious_count >0:
+		return "Suspicious"
+	else:
+		return "Clean"
+
+def detection_ratio(stats):
+	malicious_count = stats.get("malicious",0)
+	total = sum(stats.values())
+	return f"{malicious_count} / {total}"
+
+def build_url_output(urlChecked):
+	stats = urlChecked.last_analysis_stats
+	categories = urlChecked.get("categories",{})
+	reputation = urlChecked.get("reputation","N/A")
+
+	stats_text = format_analysis_stats(stats)
+	categories_text = format_categories(categories)
+	verdict = make_verdict(stats)
+	ratio = detection_ratio(stats)
+
+	output = f"""
+Initial URL: {urlChecked.url}
+
+~~ Verdict ~~
+{verdict}
+
+~~ Detection Ration ~~
+{ratio}
+
+~~ Analysis Summary ~~
+{stats_text}
+
+~~ Categories ~~
+{categories_text}
+
+~~ Reputation ~~
+Score: {reputation}
+"""
+	return output.strip()
+
+def build_file_output(file):
+	stats = file.last_analysis_stats
+
+	stats_text = format_analysis_stats(stats)
+	verdict = make_verdict(stats)
+	ratio = detection_ratio(stats)
+
+	output = f"""
+File Names: {file.names}
+SHA256: {file.sha256}
+Size(in bytes): {file.size}
+
+~~ Verdict ~~
+{verdict}
+
+~~ Detection Ratio ~~
+{ratio}
+
+~~ Analysis Summary ~~
+{stats_text}
+"""
+	return output.strip()
 icon_path = os.path.basename("favicon.ico")
 
 #window layout in 2 columns
@@ -77,11 +160,8 @@ while True:
 	if event == "-FILEBUTTON-":
 		try:
 			file = fetch_file_data(values["-FILEHASH-"])
-			window["-OUTPUT1-"].update("File Names: "+file.names+
-			"\nFile size: "+str(file.size)+" bytes" +
-			"\nFile Sha256: "+str(file.sha256) +
-			"\nFile Type: "+str(file.type_tag) +
-			"\nFile Last Analysed Statistics: "+str(file.last_analysis_stats))
+			formatted_output = build_file_output(file)
+			window["-OUTPUT1-"].update(formatted_output)
 		except Exception as e:
 			window["-OUTPUT1-"].update(str(e))
 
@@ -89,10 +169,8 @@ while True:
 		print("> Attempting to pull URL information...")
 		try:
 			urltoCheck = fetch_URL_data(values["-URL-"])
-			window["-OUTPUT2-"].update("Initial URL: "+urltoCheck.url +
-			"\nVirusTotal Reputation: "+str(urltoCheck.reputation)+
-			"\nLast Analysis stats: "+str(urltoCheck.last_analysis_stats)+
-			"\nWebsite Category: "+str(urltoCheck.categories))
+			formatted_output = build_url_output(urltoCheck)
+			window["-OUTPUT2-"].update(formatted_output)
 		except Exception as e:
 			window["-OUTPUT2-"].update(str(e))
 
